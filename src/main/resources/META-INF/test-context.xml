@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans xmlns="http://www.springframework.org/schema/beans"
+	   xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:jdbc="http://www.springframework.org/schema/jdbc"
+	   xmlns:jpa="http://www.springframework.org/schema/data/jpa"
+	   xmlns:context="http://www.springframework.org/schema/context"
+	   xsi:schemaLocation="http://www.springframework.org/schema/jdbc http://www.springframework.org/schema/jdbc/spring-jdbc-3.1.xsd
+		http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans.xsd
+		http://www.springframework.org/schema/data/jpa http://www.springframework.org/schema/data/jpa/spring-jpa-1.2.xsd http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context.xsd">
+
+	<!-- Database -->
+	<!--<jdbc:embedded-database id="datasource" type="H2"></jdbc:embedded-database>-->
+	<bean id="datasource" class="com.atomikos.jdbc.nonxa.AtomikosNonXADataSourceBean">
+		<property name="driverClassName" value="oracle.jdbc.driver.OracleDriver" />
+		<property name="url" value="jdbc:oracle:thin:@192.168.163.9:1521:nahab1" />
+		<property name="user" value="nahab" />
+		<property name="password" value="nahab" />
+		<property name="testQuery" value="select count(id) from DD_FILE" />
+		<property name="borrowConnectionTimeout" value="30" />
+		<property name="poolSize" value="20" />
+		<property name="uniqueResourceName" value="DD_Resource" />
+	</bean>
+
+	<bean id="jpaVendorAdapter" class="org.springframework.orm.jpa.vendor.HibernateJpaVendorAdapter">
+		<property name="databasePlatform" value="org.hibernate.dialect.Oracle10gDialect" />
+		<property name="showSql" value="true" />
+		<property name="generateDdl" value="false" />
+	</bean>
+
+
+
+	<!-- Entity Manager -->
+	<bean id="entityManagerFactory"
+		  class="org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean">
+		<property name="dataSource" ref="datasource" />
+		<property name="jpaVendorAdapter" ref="jpaVendorAdapter" />
+		<property name="persistenceUnitName" value="myPersistenceUnit" />
+		<property name="packagesToScan" >
+			<list>
+				<value>com.isc.npsd.sharif.node.entities</value>
+			</list>
+		</property>
+		<property name="persistenceProvider">
+			<bean id="persistenceProvider" class="org.hibernate.ejb.HibernatePersistence">
+			</bean>
+		</property>
+		<property name="jpaPropertyMap">
+			<props>
+				<prop key="javax.persistence.validation.mode">none</prop>
+				<prop key="hibernate.dialect">org.hibernate.dialect.Oracle10gDialect</prop>
+				<prop key="hibernate.hbm2ddl.auto">update</prop>
+				<prop key="hibernate.jdbc.batch_size">240000</prop>
+				<prop key="hibernate.order_inserts">true</prop>
+				<prop key="org.hibernate.flushMode">COMMIT</prop>
+				<prop key="hibernate.current_session_context_class">jta</prop>
+				<prop key="hibernate.temp.use_jdbc_metadata_defaults">false</prop>
+			</props>
+		</property>
+	</bean>
+
+	<!-- Transaction Manager -->
+	<bean id="userTransactionService"
+		  class="com.atomikos.icatch.config.UserTransactionServiceImp"
+		  init-method="init" destroy-method="shutdownForce">
+		<constructor-arg>
+			<props>
+				<prop key="com.atomikos.icatch.service">
+					com.atomikos.icatch.standalone.UserTransactionServiceFactory
+				</prop>
+				<prop key="com.atomikos.icatch.serializable_logging">
+					false
+				</prop>
+				<prop key="com.atomikos.icatch.registered">
+					true
+				</prop>
+			</props>
+		</constructor-arg>
+	</bean>
+
+	<bean id="atomikosTransactionManager"
+		  class="com.atomikos.icatch.jta.UserTransactionManager"
+		  init-method="init" destroy-method="close">
+		<property name="startupTransactionService" value="false"/>
+		<property name="forceShutdown" value="false" />
+	</bean>
+
+	<bean id="atomikosUserTransaction"
+		  class="com.atomikos.icatch.jta.UserTransactionImp">
+		<property name="transactionTimeout" value="300" />
+	</bean>
+
+	<bean id="transactionManager"
+		  class="org.springframework.transaction.jta.JtaTransactionManager">
+		<property name="transactionManager" ref="atomikosTransactionManager" />
+		<property name="userTransaction" ref="atomikosUserTransaction" />
+	</bean>
+
+	<!-- Jpa Repositories -->
+	<jpa:repositories base-package="com.isc.npsd.sharif.node.repositories"></jpa:repositories>
+	<context:component-scan base-package="com.isc.npsd.sharif.node.services" />
+</beans>
